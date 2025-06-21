@@ -55,7 +55,7 @@ ALL_MODULES = [
 ]
 
 KEY_SEQUENCE_TIMEOUT = 2000
-KAGGLE_SERVER_URL = "https://616d-34-125-31-247.ngrok-free.app"
+KAGGLE_SERVER_URL = "https://10e6-34-30-79-56.ngrok-free.app"
 KAGGLE_SERVER_URL += "/predict"
 """
 Advanced PDF Viewer GUI application.
@@ -94,7 +94,7 @@ class AdvancedPDFViewer(tk.Tk):
 
         # Initialize PDF Engine
         self.engine = PdfEngine(
-            scaling=2
+            scaling=4
         )  # Initial instantiation using PdfEngine directly
         self.navigation_mode = "page"  # "page" or "question"
         self.current_page_number = 0
@@ -260,7 +260,7 @@ class AdvancedPDFViewer(tk.Tk):
         self.md_button = ttk.Button(
             self.controls_frame,
             text="OCR.md (Ctrl+m)",
-            command=self.toggle_ocr_md,
+            command=lambda x: self.toggle_ocr_md(1),
         )
         self.md_button.pack(fill=tk.X, padx=5, pady=2)
 
@@ -322,7 +322,8 @@ class AdvancedPDFViewer(tk.Tk):
         )
 
         self.bind("<Control-s>", self.save_surface_to_png)
-        self.bind("<Control-m>", self.toggle_ocr_md)
+        self.bind("<Control-m>", lambda x: self.toggle_ocr_md(1))
+        self.bind("<Control-Shift-M>", lambda x: self.toggle_ocr_md(2))
         self.bind("<Control-l>", self.toggle_ocr_tex)
 
         # scrolling :
@@ -603,7 +604,7 @@ class AdvancedPDFViewer(tk.Tk):
                     )
 
                     surface = self.engine.render_a_question(
-                        self.current_question_number
+                        self.current_question_number, devide=False
                     )
 
                     if (
@@ -921,7 +922,7 @@ class AdvancedPDFViewer(tk.Tk):
             self.img_copy = pil_image.copy()
             self.rel_scale = pil_image.width / pil_image.height
 
-    def toggle_ocr_md(self, event=None):
+    def toggle_ocr_md(self, mode):
 
         self.update_status_bar("OCRing ......")
         self.ocr_mode = "md"
@@ -943,7 +944,7 @@ class AdvancedPDFViewer(tk.Tk):
             self.simple_ocr(ocr_out_path)
         else:
             self.update_status_bar("Advance Ocr ...")
-            ok = self.advance_ocr(ocr_out_path)
+            ok = self.advance_ocr(ocr_out_path, mode)
             if not ok:
                 return
 
@@ -964,7 +965,7 @@ class AdvancedPDFViewer(tk.Tk):
         render_markdown_to_png(zip_dict, ocr_out_path)
         return True
 
-    def advance_ocr(self, ocr_out_path):
+    def advance_ocr(self, ocr_out_path, mode):
         surf_res = self.engine.render_a_question(
             self.current_question_number, devide=True
         )
@@ -977,7 +978,7 @@ class AdvancedPDFViewer(tk.Tk):
             all_bytes += self.image_to_png_bytes(surf) + seperator
 
         ocr_res = self.detect_layout_miner_u_remote_advance(
-            all_bytes, seperator, idx_list
+            all_bytes, seperator, idx_list, mode
         )
         temp_f = "." + sep + "output" + sep + "ocr_res.json"
         self.example_counter += 1
@@ -986,7 +987,7 @@ class AdvancedPDFViewer(tk.Tk):
             f.write(json.dumps(ocr_res))
 
         self.update_status_bar("OCR: responce  saved to :" + temp_f)
-        p_size = ocr_res["page-size"]
+        p_size = ocr_res.get("page-size")
 
         self.ocr_question_processor.set_question(q, ocr_res, surf_res, p_size)
         css_path = (
@@ -1067,7 +1068,7 @@ class AdvancedPDFViewer(tk.Tk):
                 await page.screenshot(
                     path=output_png_path, full_page=True, type="png"
                 )
-                await browser.close()
+                # await browser.close()
 
             print(f"✅ Successfully rendered content to {output_png_path}")
 
@@ -1078,9 +1079,13 @@ class AdvancedPDFViewer(tk.Tk):
         pass
 
     def detect_layout_miner_u_remote_advance(
-        self, all_bytes: bytes, seperator: bytes, idx_list
+        self, all_bytes: bytes, seperator: bytes, idx_list, mode: int
     ):
-        data = {"idx": idx_list, "seperator": seperator.decode("latin")}
+        data = {
+            "idx": idx_list,
+            "seperator": seperator.decode("latin"),
+            "mode": "pipeline" if mode == 1 else "transformers",
+        }
         files = {
             "image": (
                 "some_name.png",

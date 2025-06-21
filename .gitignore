@@ -1,7 +1,11 @@
 venv/
+venv-12/
 __pycache__/
 old/
 output/
 temp/
 Fonts/sources
 local-models/
+node_modules/
+package.json
+package-lock.json

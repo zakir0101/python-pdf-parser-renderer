@@ -293,7 +293,7 @@ class QuestionDetector(QuestionDetectorBase):
         self.print_internal_status("After:")
         self.prev_first_char = None
         self.line_height = (
-            0.01 * page_height * Symbol.LINE_HEIGHT_FACTOR * self.scale
+            0.01 * page_height * Symbol.LINE_HEIGHT_FACTOR  # * self.scale
         )
         self.bufferd_line: SymSequence | None = None
 

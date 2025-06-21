@@ -73,7 +73,7 @@ class SubPart(Box):
 
 
 class Symbol(Box):
-    LINE_HEIGHT_FACTOR = 4.2
+    LINE_HEIGHT_FACTOR = 1.3
 
     def __init__(self, ch, x, y, w, h) -> None:
         super().__init__(x, y, w, h)
@@ -422,7 +422,7 @@ class SurfaceGapsSegments(BoxSegments):
             print("COMPARE", max_y, q_y_max)
         # print(y0, "   ", y1, "for debugging")
         # print("seq length = ", len(segments))
-        line_height = self.scale * Symbol.LINE_HEIGHT_FACTOR * self.d0
+        line_height = Symbol.LINE_HEIGHT_FACTOR * self.d0  # * self.scale
         for box in self.non_empty_segments:
             box_min, box_max, d0 = box.y, box.h + box.y, self.d0
             # if not self.default_d0 and d0:
@@ -501,7 +501,7 @@ class SurfaceGapsSegments(BoxSegments):
         out_y_start: float,
         scale: int,
         segments: list[Box] | None = None,
-        start_y: float = 10000,
+        q_part: Box = None,
     ):
         """return (y_after) the y-location after drawing the segments into the output Context"""
         if not segments:
@@ -514,9 +514,10 @@ class SurfaceGapsSegments(BoxSegments):
         # TODO: FIX ME FOR FULL PAGE RENDERING , the line_height is independent of page_height , following line should be change
         # for instande by adding a char_height (d0) to Box class
         # if not line_height:
-        line_height = self.d0 * Symbol.LINE_HEIGHT_FACTOR * self.scale
+        line_height = self.d0 * Symbol.LINE_HEIGHT_FACTOR  # * self.scale
 
         image_counter = 0
+        trim_start_x = 0
         for i, box in enumerate(segments):
             # box : Box = box
             src_y, seg_h = box.y, box.h
@@ -532,58 +533,67 @@ class SurfaceGapsSegments(BoxSegments):
             """Read the doc string below : this is for padding the top most line from above"""
 
             is_first = False
-            if out_y_start == 0 or abs(start_y - src_y) < 0.3 * line_height:
-                print("is_first is True")
+
+            if q_part and abs(q_part.y - src_y) < 1.6 * line_height:
+                print("is_first is True", "line_height =", line_height)
                 is_first = True
-                cover_surf = cairo.ImageSurface(
-                    cairo.FORMAT_ARGB32,
-                    round(src_x + line_height * 0.85),
-                    round(line_height * 1.8),
-                )
-                print(
-                    "cover : ", cover_surf.get_width(), cover_surf.get_height()
-                )
-                temp_ctx = cairo.Context(cover_surf)
-                temp_ctx.set_source_rgb(1, 1, 1)
-                temp_ctx.paint()
+                trim_start_x = q_part.x
+                trim_factor = 2.5 * line_height
                 out_y_start = 1.0 * line_height
 
             """handle case: seg is Image/diagram"""
 
             if h0 > line_height * 2.0:
                 image_counter += 1
-                # out_ctx.save()
-                # out_ctx.set_font_size(10 * scale)
-                # out_ctx.set_source_rgb(0, 0, 0)
-                # out_ctx.move_to(
-                #     line_height * 1.7, out_y_start + line_height * 0.4
-                # )
-                # out_ctx.show_text(f"<Image {image_counter}>")
-                # out_ctx.restore()
-                # out_y_start += 0.8 * line_height
 
             sub = input_surf.create_for_rectangle(
-                0, y0, input_surf.get_width(), h0
+                0 + trim_start_x - trim_factor,
+                y0,
+                input_surf.get_width() + trim_start_x - trim_factor,
+                h0,
             )
             out_ctx.set_source_surface(sub, 0, out_y_start)
             out_ctx.paint()
+
             if is_first:
+                cover_surf = cairo.ImageSurface(
+                    cairo.FORMAT_ARGB32,
+                    round(q_part.x + line_height * 1.60),
+                    round(line_height * 2.2),
+                )
+                temp_ctx = cairo.Context(cover_surf)
+
+                temp_ctx.set_source_rgb(1, 1, 1)
+                temp_ctx.paint()
+                if False:
+                    temp_ctx.set_source_rgb(0, 0, 0)
+                    temp_ctx.save()
+                    temp_ctx.set_font_size(10 * scale)
+                    temp_ctx.get_font_matrix().scale(scale, scale)
+                    temp_ctx.move_to(
+                        q_part.x - 1.5 * line_height, line_height * 0.8
+                    )
+                    temp_ctx.show_text(f"{q_part.label} -")
+
+                    temp_ctx.restore()
+
+                # ---------------------------------------------
+
                 out_ctx.set_source_surface(
                     cover_surf,
-                    0,  # src_x
-                    out_y_start - 0.2 * line_height,
+                    -1 * trim_start_x + trim_factor,  # src_x
+                    out_y_start,
                 )
                 out_ctx.paint()
-                out_surf: cairo.ImageSurface = out_ctx.get_target()
 
-                y_temp_0 = round(out_y_start)
-                y_temp_1 = round(out_y_start + h0)
-                # self.is_data_white_only(out_surf,)
-                array = self.build_blank_mask(out_surf, y_temp_0, y_temp_1)
-                if np.count_nonzero(array) >= len(array) - 1:
-
-                    print("found empty line")
-                    continue
+                if False:
+                    out_surf: cairo.ImageSurface = out_ctx.get_target()
+                    y_temp_0 = round(out_y_start)
+                    y_temp_1 = round(out_y_start + h0)
+                    array = self.build_blank_mask(out_surf, y_temp_0, y_temp_1)
+                    if np.count_nonzero(array) >= len(array) - 1:
+                        print("found empty line")
+                        continue
 
             """this 0.25 is for spacing between lines, it require the surface to
             be paint white at beginning"""

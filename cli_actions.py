@@ -28,7 +28,7 @@ def do_make(args: CmdArgs):
 
 
 def do_tests(args: CmdArgs):
-
+    clear_temp_files(args)
     callbacks = {
         "list": do_list,
         # "font-show": do_test_font,
@@ -451,9 +451,13 @@ def show_page(args: CmdArgs):
 
 
 def clear_temp_files(args: CmdArgs):
+
     for f in os.listdir("temp"):
+        if os.path.isdir(f"temp{sep}{f}"):
+            continue
         print(f"removing {f}")
         os.remove(f"temp{sep}{f}")
+
     for f in os.listdir("output"):
         if f.startswith("glyphs_"):
             print(f"removing {f}")

@@ -19,7 +19,7 @@ from .pdf_font import PdfFont
 from .engine_state import EngineState
 from .pdf_stream_parser import PDFStreamParser
 
-from .pdf_utils import crop_image_surface
+from .pdf_utils import concat_cairo_surfaces, crop_image_surface
 from detectors.question_detectors import (
     QuestionDetector,
     enable_detector_dubugging,
@@ -187,13 +187,17 @@ class PdfEngine:
 
         q: Question = self.question_list[q_nr - 1]
         ren = self.renderer
-        return q.draw_question_on_image_surface(
+        surf_res = q.draw_question_on_image_surface(
             self.page_seg_dict,
             ren.header_y,
             ren.footer_y,
             self.scaling,
-            devide,
+            devide=True,
         )
+        if devide:
+            return surf_res
+        else:
+            return concat_cairo_surfaces(surf_res)
 
     # *******************************************************
     # **************** initialization  **********************
@@ -214,7 +218,9 @@ class PdfEngine:
             float(first_page.mediabox.height) * self.scaling
         )
         self.d0 = self.scaled_page_height * 0.01
-        self.line_height = Symbol.LINE_HEIGHT_FACTOR * self.scaling * self.d0
+        self.line_height = (
+            Symbol.LINE_HEIGHT_FACTOR * self.d0
+        )  # * self.scaling
 
         self.font_map: dict[str, PdfFont] | None = None
 

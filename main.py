@@ -1,4 +1,4 @@
-#! ./venv/bin/python
+#! ./venv-12/bin/python
 # PYTHON_ARGCOMPLETE_OK
 
 import argparse

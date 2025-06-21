@@ -238,11 +238,7 @@ class Question(QuestionBase):
                     continue
                 self.current_y = (
                     page_seg.clip_segments_from_surface_into_contex(
-                        out_ctx,
-                        self.current_y,
-                        scale,
-                        q_segments,
-                        self.y,
+                        out_ctx, self.current_y, scale, q_segments, self
                     )
                 )
 

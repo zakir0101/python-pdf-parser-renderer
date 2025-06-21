@@ -41,6 +41,21 @@ def _surface_as_uint32(surface: cairo.ImageSurface, y0, y1):
     return array[y0:y1]
 
 
+def concat_cairo_surfaces(surf_dict: dict[str, cairo.ImageSurface]):
+    height = sum([s.get_height() for s in surf_dict.values()])
+    width = max([s.get_width() for s in surf_dict.values()])
+
+    out_surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+    out_ctx = cairo.Context(out_surf)
+    y_out = 0
+    for id, surf in surf_dict.items():
+        out_ctx.set_source_surface(surf, 0, y_out)
+        out_ctx.paint()
+        y_out += surf.get_height()
+
+    return out_surf
+
+
 def crop_image_surface(out_surf: cairo.ImageSurface, y_start, y_end, padding):
     # print("dest_y", self.dest_y)
 

@@ -142,7 +142,7 @@ class OcrSpan(OcrItem):
     def __init__(self, json_dict: dict, src_image_array) -> None:
         super().__init__(json_dict, src_image_array)
         self.type = json_dict["type"]
-        self.score = json_dict["score"]
+        self.score = json_dict.get("score")
         self.html = None
 
         self.__initialize_vars__()

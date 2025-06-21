@@ -34,7 +34,7 @@ not complete yet , and need fixing some minor issues [ pdf_font.py and pdf_rende
 
 
 ---
-# CLI interface:
+## CLI interface:
 
 - located in main.py and cli_actions.py
 - most of its functionality is [depricated] by gui/advance_pdf_gui , which offer more functionality and make the debuggin easier
@@ -52,8 +52,8 @@ not complete yet , and need fixing some minor issues [ pdf_font.py and pdf_rende
     - display math and extract latex code
     - lines and within each line 1 or more spans
     - inline_math as latex can be detected on span class
-- **repo :zakir0101/pdf-element-extraction-kaggle ** contain the server code currently in beta
-- **class: advance_pdf_gui ** handle the communication with server , [NOTE: later it will be moved to dedicated class or module]
+- **repo :zakir0101/pdf-element-extraction-kaggle** contain the server code currently in beta
+- **class: advance_pdf_gui** handle the communication with server , [NOTE: later it will be moved to dedicated class or module]
 
 ### detectors/ocr_detectors :
 
@@ -65,10 +65,10 @@ not complete yet , and need fixing some minor issues [ pdf_font.py and pdf_rende
 ## gui module:
 
 - the main file "advance_pdf_gui" contain a simple yet powerfull tkinter App, which help with debugging all teh core component and previewing the results interactivly
-- start it with python main.py test gui --group [latest,oldest,random..etc] --size [tiny,small,med..etc] [ --subjects 9709 9231 ]
+- start it with python main.py test gui --group [latest,oldest,random..etc] --size [tiny,small,med..etc] [ --subjects 9709 9231 ..etc ]
 - you can navigate selcted exams , render each page there , extract question and render them indevidually .. also highlight extracted part and subpart on the statusbar.
 - you can ocr structured data and previews it on this Gui as renderd html page (rendered with pyright)  [see next section]
-- ** THIS CLASS WAS INITIALLY WRITTEN BY AI (JULES), BECAME RECENTLY VERY MESSY **, and include alot of not-well structured code , it should be refactored into logically independent cLasses/modules
+- **THIS CLASS WAS INITIALLY WRITTEN BY AI (JULES), BECAME RECENTLY VERY MESSY**, and include alot of not-well structured code , it should be refactored into logically independent cLasses/modules
 
 
 ---
@@ -76,19 +76,18 @@ not complete yet , and need fixing some minor issues [ pdf_font.py and pdf_rende
 
 # current pipline :
 
-1. question extraction : parse pdfstream, iterated over pdf CMD ,  each text-drawing command (TJ,Tj,T* ,..etc ) to the detector , which identify question/part/subpart , [ optionally pass each pdf CMD to BaseRendere for rendering the Page on cairo.ImageSurface as well, alternativly use the pymupdf for drawing the page into Png]
+1. question extraction : parse pdfstream, iterated over pdf CMD , send each text-drawing command (TJ,Tj,T* ,..etc ) to the detector , which identify question/part/subpart , [ optionally pass each pdf CMD to BaseRendere for rendering the Page on cairo.ImageSurface as well, alternativly use the pymupdf for drawing the page into Png]
     - output of this stage is the question_list (of type models.question.Question)
     - entry point for this step is : engine.pdfEngine.extract_questions_from_pdf()
     - at the end of this step we also have drawen all pdf pages into PNG/Surface
-
-for each question :
+- **for each question :**
 2. crop the quesiton surface into a ImageSurface/PNG
-3- futher crop each questionImage into sub-images for each part/subpart 
-4- clean the number/label of the quesion/part from the image
-5- send all the images for a single question to the OCRing server together .
-6- parser the ocr result for that question and render it as html 
-7- validate any detection errors 
-8- iterate
+3. futher crop each questionImage into sub-images for each part/subpart 
+4. clean the number/label of the quesion/part from the image
+5. send all the images for a single question to the OCRing server together .
+6. parser the ocr result for that question and render it as html 
+7. validate any detection errors 
+8. move to next question 
 
 
 ---
@@ -98,7 +97,7 @@ for each question :
 
 ### optimizing the pipline/workflow speed for rapid develpemnt, and keeping budget spent minimal :
 
-** this require adjustment in 3 areas **
+**this require adjustment in 3 areas**
 
 1. migrage to a cheap gpu-renting platform (vast.ai):
     - pick a decent gpu hosted in a datacenter with hight availabily and a somewhat good relayabilty 
@@ -108,22 +107,24 @@ for each question :
     - each time where long break will take place ( > 3 min) , immediatly stop the instance ... ( maybe automate this stopping process after in-activity )
     - if the GUi started but found the instance was deleted/destroyed for some reason (server was down,or has cleard cache), then Exit GUI , create a new intance on the device ( might take a while < 1 hour) .
     - repeat till done
-
+    -
 
 2. sever-side enhancment :
     - client should NOT send Image/PDF/BINARY data to server : write a downloader.py script , which can locate exam-pdfs on the web download them directly to the rented  datacenter VOLUMN ( part of the intial setup)
     - Batch-processing : as soon as GUI finish extracting_question for a specifc exam , send "ONLY" the quesitons_list to serverat once , process the whole question at once async , client should check status requrally through and endpoint and fetch result for a question of interrest .
-    - implemtn cache : if a quesion_hash does not change in the new requeset use the old cached version
+    - implemtn cache : if a quesion_hash does not change in the new requeset use the old cached version. 
+    -
 
-3. client-side enhancement :
-    - when detecting question, ovoid all unnessary work like in the EngineState and BaseRenderer, or loading fonts .. 
-    TODO: add new light-mode option which only parse pdf-page-stream and skipp all CMD except those needed by the detector [tj* , ctm , tm ,tm ,..etc] 
+3. **client-side enhancement** :
+    - when detecting question, ovoid all unnessary work like in the EngineState and BaseRenderer, or loading fonts ..  
+    **#TODO:** add new light-mode option which only parse pdf-page-stream and skipp all CMD except those needed by the detector [tj* , ctm , tm ,tm ,..etc] 
     - use a fast deticated module for the acutal rendering (like pymupdf, or like that "??" one with C-binding)
     - refactor/modularize the Tkinter APP (advance_pdf_gui) ...
     - make the pyright engine work efficiently :
         - start the moduel it only once
         - find faster alternative to screen_shot , which can directly map the output to tkinter tkImage 
         - use the UN-scaled dimenstion for viewport and scale all images down ..
+    - 
 
 4. finally :  
- w  ** after making sure
+    ** after making sure the engine- and detector- modules are working accuratly, move them to the server side for faster proccessing, only keep the gui code to run locally 
