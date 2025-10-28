@@ -1,47 +1,50 @@
 #! ./venv/bin/python
 
-import json
-import io
 import asyncio
-import zipfile
-import tkinter as tk
-
-from playwright.async_api import async_playwright
-from tkinter import ttk
+import importlib
+import io
+import json
 import os
-from pathlib import Path
-from os.path import sep
-import requests
-from PIL import Image, ImageTk
-import cairo  # For type hinting and direct use if necessary
-
-# MinerU
+import tkinter as tk
 
 # from tkinter import filedialog  # Though not used for file picking yet
 # from functools import partial  # For cleaner command binding if needed
 import traceback
-import importlib
-from engine.pdf_utils import open_pdf_using_sumatra
-from detectors.ocr_detectors import OcrQuestion, OcrItem
+import zipfile
+from os.path import sep
+from pathlib import Path
+from tkinter import ttk
 
+import cairo  # For type hinting and direct use if necessary
+import requests
+from PIL import Image, ImageTk
+from playwright.async_api import async_playwright
 
-# Import for reloading and instantiation
-from engine import pdf_engine as pdf_engine_module
-from engine import (
-    pdf_renderer as pdf_renderer_module,
-)  # Assuming these are modules
-from engine import pdf_font as pdf_font_module
 from detectors import question_detectors as q_detectors_module
-from models import question as q_model_module
-from models import core_models as core_model_module
+from detectors.ocr_detectors import OcrItem, OcrQuestion
 
 # from detectors.question_detectors import QuestionDetector as q_detectors_module
 # from detectors.question_detectors import ( QuestionDetectorBase as qbase_detectors_module,)
+# Import for reloading and instantiation
 from engine import engine_state as pdf_state_module
-
+from engine import pdf_engine as pdf_engine_module
+from engine import pdf_font as pdf_font_module
+from engine import (
+    pdf_renderer as pdf_renderer_module,
+)  # Assuming these are modules
 from engine.pdf_engine import PdfEngine
-
+from engine.pdf_utils import (
+    concat_cairo_surfaces,
+    open_pdf_using_sumatra,
+    splitt_ocr_response,
+)
 from external.markdown import render_markdown_to_png
+from gui.browser_manager import BrowserManager
+from models import core_models as core_model_module
+from models import question as q_model_module
+
+# MinerU
+
 
 ALL_MODULES = [
     core_model_module,
@@ -55,7 +58,7 @@ ALL_MODULES = [
 ]
 
 KEY_SEQUENCE_TIMEOUT = 2000
-KAGGLE_SERVER_URL = "https://10e6-34-30-79-56.ngrok-free.app"
+KAGGLE_SERVER_URL = "http://0891-82-141-118-2.ngrok-free.app"
 KAGGLE_SERVER_URL += "/predict"
 """
 Advanced PDF Viewer GUI application.
@@ -94,7 +97,7 @@ class AdvancedPDFViewer(tk.Tk):
 
         # Initialize PDF Engine
         self.engine = PdfEngine(
-            scaling=4
+            scaling=2
         )  # Initial instantiation using PdfEngine directly
         self.navigation_mode = "page"  # "page" or "question"
         self.current_page_number = 0
@@ -120,7 +123,13 @@ class AdvancedPDFViewer(tk.Tk):
         # Ensure the PDFs directory exists for sample paths if running from repo root
         # For now, assuming these paths are valid relative to where the script is run
         # Or that the PdfEngine handles path resolution.
+
         self.engine.set_files(sample_pdf_paths)
+        sc = self.engine.scaling
+        self.browser_manager = BrowserManager(
+            self.engine.scaled_page_width, self.engine.scaled_page_height
+        )
+        self.browser_manager.start()
 
         # Create main frames
         self.display_frame = ttk.Frame(self, relief=tk.GROOVE, borderwidth=2)
@@ -970,16 +979,21 @@ class AdvancedPDFViewer(tk.Tk):
             self.current_question_number, devide=True
         )
         q = self.engine.question_list[self.current_question_number - 1]
+        q_surface = concat_cairo_surfaces(surf_res)
         idx_list = []
         all_bytes = b""
         seperator = b"IAM_A_SEPERATOR_PLEASE"
-        for id, surf in surf_res.items():
+        for id, surf in [(q.id, q_surface)]:  # surf_res.items():
             idx_list.append(id)
             all_bytes += self.image_to_png_bytes(surf) + seperator
 
         ocr_res = self.detect_layout_miner_u_remote_advance(
             all_bytes, seperator, idx_list, mode
         )
+        ocr_res = splitt_ocr_response(
+            surf_res, ocr_res, q, q_surface.get_width()
+        )
+
         temp_f = "." + sep + "output" + sep + "ocr_res.json"
         self.example_counter += 1
 
@@ -989,7 +1003,8 @@ class AdvancedPDFViewer(tk.Tk):
         self.update_status_bar("OCR: responce  saved to :" + temp_f)
         p_size = ocr_res.get("page-size")
 
-        self.ocr_question_processor.set_question(q, ocr_res, surf_res, p_size)
+        surf_map = {k: q_surface for k in surf_res.keys()}
+        self.ocr_question_processor.set_question(q, ocr_res, surf_map, p_size)
         css_path = (
             Path(os.path.join("resources", "question.css")).resolve().as_uri()
         )
@@ -1028,7 +1043,11 @@ class AdvancedPDFViewer(tk.Tk):
                 asyncio.WindowsSelectorEventLoopPolicy()
             )
 
-        asyncio.run(self.render_html_playwright(temp_html, ocr_out_path))
+        # asyncio.run(self.render_html_playwright(temp_html, ocr_out_path))
+
+        self.browser_manager.render_html(temp_html, ocr_out_path)
+
+        print(f"✅ Successfully rendered content to {ocr_out_path}")
 
         self.update_status_bar("html rendered successfully")
         return True
@@ -1044,36 +1063,39 @@ class AdvancedPDFViewer(tk.Tk):
         self, input_html_path: dict, output_png_path: str
     ):
         try:
-            async with async_playwright() as p:
-                browser = await p.chromium.launch()
+            # async with async_playwright() as p:
+            # browser = await p.chromium.launch()
+            # page = await browser.new_page()
+            # await page.set_viewport_size(
+            #     {
+            #         "width": self.engine.scaled_page_width
+            #         // self.engine.scaling
+            #         * 2,
+            #         "height": 1,
+            #         # self.engine.scaled_page_height // self.engine.scaling * 2,
+            #     }
+            # )
+            #
+            # await page.goto(Path(input_html_path).resolve().as_uri())
+            #
+            # # await page.add_style_tag(content=css2)
+            #
+            # await page.wait_for_load_state("networkidle")
+            #
+            # await page.screenshot(
+            #     path=output_png_path, full_page=True, type="png"
+            # )
+            # # await browser.close()
 
-                page = await browser.new_page()
-
-                await page.set_viewport_size(
-                    {
-                        "width": self.engine.scaled_page_width
-                        // self.engine.scaling
-                        * 2,
-                        "height": 1,
-                        # self.engine.scaled_page_height // self.engine.scaling * 2,
-                    }
-                )
-
-                await page.goto(Path(input_html_path).resolve().as_uri())
-
-                # await page.add_style_tag(content=css2)
-
-                await page.wait_for_load_state("networkidle")
-
-                await page.screenshot(
-                    path=output_png_path, full_page=True, type="png"
-                )
-                # await browser.close()
+            await self.browser_manager.render_html(
+                input_html_path, output_png_path
+            )
 
             print(f"✅ Successfully rendered content to {output_png_path}")
 
         finally:
             print("Playwright : finished taking the screen shot")
+        return
 
     def toggle_ocr_tex(self, event=None):
         pass
@@ -1084,7 +1106,9 @@ class AdvancedPDFViewer(tk.Tk):
         data = {
             "idx": idx_list,
             "seperator": seperator.decode("latin"),
-            "mode": "pipeline" if mode == 1 else "transformers",
+            "mode": (
+                "pipeline" if mode == 1 else "transformers"
+            ),  # "sglang-engine"
         }
         files = {
             "image": (

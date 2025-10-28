@@ -1,31 +1,28 @@
 import os
-import fitz  # PyMuPDF library
-import cairo
-import numpy as np
-from pypdf.generic import (
-    IndirectObject,
-    EncodedStreamObject,
-    ArrayObject,
-)
-from pypdf import PdfReader, PageObject
 import pprint
+from os.path import sep
+
+import cairo
+import fitz  # PyMuPDF library
+import numpy as np
+from pypdf import PageObject, PdfReader
+from pypdf.generic import ArrayObject, EncodedStreamObject, IndirectObject
 
 from detectors import question_detectors
-from engine.pdf_operator import PdfOperator
-from models.core_models import SurfaceGapsSegments, Symbol
-from models.question import Question
-from .pdf_renderer import BaseRenderer
-from .pdf_font import PdfFont
-from .engine_state import EngineState
-from .pdf_stream_parser import PDFStreamParser
-
-from .pdf_utils import concat_cairo_surfaces, crop_image_surface
 from detectors.question_detectors import (
     QuestionDetector,
     enable_detector_dubugging,
 )
-from os.path import sep
+from engine.pdf_operator import PdfOperator
+from models.core_models import SurfaceGapsSegments, Symbol
+from models.question import Question
+
+from .engine_state import EngineState
 from .pdf_encoding import PdfEncoding as pnc
+from .pdf_font import PdfFont
+from .pdf_renderer import BaseRenderer
+from .pdf_stream_parser import PDFStreamParser
+from .pdf_utils import concat_cairo_surfaces, crop_image_surface
 
 
 class PdfEngine:
@@ -59,6 +56,8 @@ class PdfEngine:
 
     def __init__(self, scaling=1, clean: int = 0):
         self.scaling = scaling
+        self.scaled_page_width = 595 * scaling
+        self.scaled_page_height = 842 * scaling
         # self.debug = debug
         self.clean = clean
         self.page_seg_dict: dict[int, SurfaceGapsSegments] = {}

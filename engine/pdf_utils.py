@@ -1,10 +1,11 @@
-from sys import exc_info
-import numpy as np
-import cairo
-import subprocess
+import itertools
 import os
+import subprocess
 from os.path import sep
+from sys import exc_info
 
+import cairo
+import numpy as np
 
 if os.name == "nt":  # Windows
     d_drive = "D:"
@@ -44,7 +45,6 @@ def _surface_as_uint32(surface: cairo.ImageSurface, y0, y1):
 def concat_cairo_surfaces(surf_dict: dict[str, cairo.ImageSurface]):
     height = sum([s.get_height() for s in surf_dict.values()])
     width = max([s.get_width() for s in surf_dict.values()])
-
     out_surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
     out_ctx = cairo.Context(out_surf)
     y_out = 0
@@ -54,6 +54,42 @@ def concat_cairo_surfaces(surf_dict: dict[str, cairo.ImageSurface]):
         y_out += surf.get_height()
 
     return out_surf
+
+
+def splitt_ocr_response(
+    surf_dict: dict[str, cairo.ImageSurface], ocr_res: dict, q, original_width
+):
+    width, height = ocr_res["page-size"][q.id]
+    ocr_scale = width / original_width
+
+    sh_list = list(
+        itertools.accumulate(
+            [s.get_height() * ocr_scale for s in surf_dict.values()]
+        )
+    )
+    sh_list = [0] + sh_list
+    old_middle = ocr_res["middle-json"][q.id]
+    old_content_list = ocr_res["content-list"][q.id]
+
+    new_ocr_res = {"page-size": {}, "content-list": {}, "middle-json": {}}
+    starting_block = 0
+    for index, (id, surf) in enumerate(surf_dict.items()):
+        # n_width, n_height = (
+        #     surf.get_width() * ocr_scale,
+        #     surf.get_height() * ocr_scale,
+        # )
+        new_ocr_res["page-size"][id] = [width, height]
+        new_ocr_res["content-list"][id] = []
+        new_ocr_res["middle-json"][id] = []
+        start_y, end_y = sh_list[index : index + 2]
+        for block in old_middle[starting_block:]:
+            _, y0, _, y1 = block["bbox"]
+            if y1 > end_y:
+                break
+            new_ocr_res["middle-json"][id].append(block)
+            starting_block += 1
+
+    return new_ocr_res
 
 
 def crop_image_surface(out_surf: cairo.ImageSurface, y_start, y_end, padding):

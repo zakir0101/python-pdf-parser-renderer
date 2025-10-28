@@ -1,9 +1,12 @@
 import os
 from pprint import pprint
 from typing import override
+
 import cairo
-from .core_models import Box, SurfaceGapsSegments
+
 from engine.pdf_utils import crop_image_surface
+
+from .core_models import Box, SurfaceGapsSegments
 
 
 class QuestionBase(Box):
@@ -180,10 +183,11 @@ class Question(QuestionBase):
         # if not full and len(self.parts) == 0:
         #     raise Exception("Question doe not has part , and should be rendered fully")
         only_render_pre = devide and len(self.parts) > 0
-        has_pre = (
-            len(self.parts) > 0
-            and abs(self.parts[0].y - self.y) > 0.65 * self.line_height
+        has_pre = len(self.parts) > 0 and (
+            self.parts[0].pages[0] != self.pages[0]
+            or abs(self.parts[0].y - self.y) > 0.65 * self.line_height
         )
+        print(f"label {self.label} has_pre = {has_pre}")
         result = {}
         if not devide or has_pre or len(self.parts) == 0:
             out_ctx = None
@@ -214,17 +218,21 @@ class Question(QuestionBase):
                     # out_ctx.show_text(f"<Question {self.number}>")
                     # out_ctx.restore()
                 last_y = (
-                    (self.parts[0].y - (0.2) * self.line_height)
-                    if (only_render_pre and has_pre)
-                    else self.y1
+                    self.y1
+                    if (not only_render_pre or not has_pre)
+                    else (
+                        self.parts[0].y - (0.2) * self.line_height
+                        if self.parts[0].pages[0] == self.pages[0]
+                        else page_surf.get_height()
+                    )
                 )
+
                 q_segments: list[Box] = page_seg.filter_question_segments(
                     self.y, last_y, all_pages, page
                 )
 
                 seg_remove = []
                 for j in range(len(q_segments)):
-                    # print("len = ", len(q_segments), "j=", j)
                     b = q_segments[j]
                     (b.y < header_y) and seg_remove.append(b)
                     ((b.y + b.h) > footer_y) and seg_remove.append(b)

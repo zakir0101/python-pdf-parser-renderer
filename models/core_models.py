@@ -1,10 +1,12 @@
+import json
+import os
+from collections import defaultdict
+from os.path import sep
+
 import cairo
 import numpy as np  # speeds things up; pure-Python fallback shown later
-from engine.pdf_utils import all_subjects, _surface_as_uint32
-from collections import defaultdict
-import json
-from os.path import sep
-import os
+
+from engine.pdf_utils import _surface_as_uint32, all_subjects
 
 # ********************************************************************
 # ********************* Detecotr Data-classes
@@ -518,7 +520,9 @@ class SurfaceGapsSegments(BoxSegments):
 
         image_counter = 0
         trim_start_x = 0
+        trim_factor = 0
         for i, box in enumerate(segments):
+
             # box : Box = box
             src_y, seg_h = box.y, box.h
             src_x, src_w = box.x, box.w
@@ -534,8 +538,14 @@ class SurfaceGapsSegments(BoxSegments):
 
             is_first = False
 
-            if q_part and abs(q_part.y - src_y) < 1.6 * line_height:
-                print("is_first is True", "line_height =", line_height)
+            if q_part and abs(q_part.y - src_y) < 0.5 * line_height:
+                print(
+                    "is_first is True",
+                    "line_height =",
+                    line_height,
+                    "for label ",
+                    q_part.label,
+                )
                 is_first = True
                 trim_start_x = q_part.x
                 trim_factor = 2.5 * line_height
