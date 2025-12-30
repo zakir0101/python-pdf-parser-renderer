@@ -9,8 +9,7 @@ freetype-py==2.5.1
 fonttools==4.57.0
 google-genai==1.16.1
 markdown-it-py==3.0.0
-playwright==1.52.0
+playwright
 tqdm==4.67.1
-fitz
-
-
+cryptography
+PyMuPDF

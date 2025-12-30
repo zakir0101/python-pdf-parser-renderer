@@ -365,9 +365,9 @@ class EngineState:
             return "", True
             self._draw_image_xobject(xobj)
         elif subtype == "/Form":
-            if xobj_name == self.stream_name:
-                print("not skipping (== handling ) recursive xobject stream !")
-                # return "", True
+            # if xobj_name == self.stream_name:
+            # print("not skipping (== handling ) recursive xobject stream !")
+            # return "", True
             self._draw_form_xobject(xobj, xobj_name)
         else:
             print(f"Unsupported XObject type: {subtype}")
@@ -435,9 +435,7 @@ class EngineState:
 
         new_depth = self.depth + 1
         if new_depth > self.MAX_X_DEPTH:
-            print(
-                f"\n\nWARNING: Ignoring xform with depth = {new_depth}\n\n\n"
-            )
+            print(f"WARNING: Ignoring xform with depth = {new_depth}")
             return
 
         self.ctx.save()
@@ -764,7 +762,7 @@ class EngineState:
         self, _: PdfOperator | None = None, dump: dict | None = None
     ):
         if not dump and len(self.state_stack) == 0:
-            raise Exception("stack is empty")
+            # raise Exception("stack is empty")
             return None
         # print("restoring state")
         if not dump:

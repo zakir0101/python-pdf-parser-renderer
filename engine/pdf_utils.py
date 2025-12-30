@@ -10,7 +10,7 @@ import numpy as np
 if os.name == "nt":  # Windows
     d_drive = "D:"
 else:
-    d_drive = "/mnt/d"
+    d_drive = "/mnt/wsl"
 if os.environ.get("IGCSE_PATH"):
     igcse_path = os.environ["IGCSE_PATH"]
 else:

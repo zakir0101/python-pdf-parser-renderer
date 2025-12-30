@@ -10,7 +10,9 @@ class PDFStreamParser:
 
     def __init__(self):
         OR = "|"
-        NOT_ESCAPE = r"(?:[^\\]|[^\\](?:\\{2})+|[\\](?=\)\]\s*TJ))"
+        NOT_ESCAPE = (
+            r"(?:[^\\]|[^\\](?:\\{2})+|[\\](?=\)\]\s*TJ)|[\\](?=\)\s*Tj))"
+        )
 
         self.HEX_REGEX = r"<(?P<hex>[0-9a-fA-F]+)>"
         self.NAME_REGEX = r"(?P<name>/\w+)"
@@ -31,8 +33,8 @@ class PDFStreamParser:
         """
         self.PRIMATIVE_REGEX = (
             self.HEX_REGEX
-            + OR
-            + self.INLINE_IMAGE_OP_REGEX
+            # + OR
+            # + self.INLINE_IMAGE_OP_REGEX
             + OR
             + self.NAME_REGEX
             + OR
@@ -95,6 +97,8 @@ class PDFStreamParser:
 
         arguements = []
         ignore_next = False
+
+        inline_image = False
         for idx, token in enumerate(self.tokens):
             if not token:  # or token == ")":
                 continue
@@ -103,23 +107,36 @@ class PDFStreamParser:
                 continue
             if re.match(self.ID_REGEX, token):
                 data = self.variables_dict[token]
-                if token.startswith("IMAGE"):
-                    img_data = data.lstrip("\n ")[2:].strip("\r\n")
-                    command = PdfOperator("ID", [img_data])
+
+                if (
+                    "NAME" in token
+                    and inline_image
+                    and re.match(self.INLINE_IMAGE_OP_REGEX, data)
+                ):
+                    if len(arguements) > 0:
+                        print("args = ", arguements)
+                        raise Exception("unhandled args")
+                    cmd = self.variables_dict[token]
+                    args = self.variables_dict[self.tokens[idx + 1]]
+                    command = PdfOperator(cmd, [args])
+                    ignore_next = True
                     yield command
                 else:
-                    arguements.append(data)
-            elif re.match(self.INLINE_ID_REGEX, token):
-                if len(arguements) > 0:
-                    print("args = ", arguements)
-                    raise Exception("unhandled args")
-                cmd = self.variables_dict[token]
-                args = self.variables_dict[self.tokens[idx + 1]]
-                command = PdfOperator(cmd, [args])
-                ignore_next = True
-                yield command
+                    if token.startswith("IMAGE"):
+                        img_data = data.lstrip("\n ")[2:].strip("\r\n")
+                        command = PdfOperator("ID", [img_data])
+                        yield command
+                    else:
+                        arguements.append(data)
             elif token in PdfOperator.OPERTORS_SET:  # .lstrip() in
+
                 cmd = token  # .lstrip(")")
+                # if cmd == "Tf":
+                #     print(self.tokens[: idx + 3])
+                if cmd == "BI":
+                    inline_image = True
+                elif cmd == "EI" or cmd == "ID":
+                    inline_image = False
                 command = PdfOperator(cmd, arguements)
                 arguements = []
                 yield command
@@ -259,5 +276,3 @@ class PDFStreamParser:
             )
         )
         return self
-
-

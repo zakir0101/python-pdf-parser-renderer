@@ -1,6 +1,7 @@
 import pprint
 import random
 import traceback
+import json
 from typing_extensions import deprecated
 import tqdm
 import sys
@@ -76,8 +77,9 @@ def do_test_subjects_syllabus(args: CmdArgs):
                 if args.range and chap.number not in args.range:
                     print(args.range, chap.number)
                     continue
-                print(f"\n{chap.number}: {chap.name}, .... description =>")
-                print("___________________________")
+                # print(f"\n{chap.number}: {chap.name}, .... description =>")
+                # print("___________________________")
+                print(chap.name)
                 if args.pause:
                     print(chap.description, "\n\n")
                 cleaned_desc = (
@@ -90,7 +92,7 @@ def do_test_subjects_syllabus(args: CmdArgs):
                     .replace(" ", "")
                     .replace(":", "")
                 )
-                print("char_count = ", len(cleaned_desc))
+                # print("char_count = ", len(cleaned_desc))
                 if not chap.description or len(cleaned_desc) == 0:
                     raise Exception("Found an emtpy chapter ... ")
 
@@ -389,28 +391,67 @@ def list_subjects(args: CmdArgs):
 
 
 def show_question(args: CmdArgs):
-    debugging = args.debug and PdfEngine.M_DEBUG_DETECTOR
+    debugging = args.debug and PdfEngine.M_DEBUG
     is_extract = args.test == "extract-questions"
     clean = args.clean
-    engine: PdfEngine = PdfEngine(4, debugging, clean)
-    print(args.data, type(args.data))
+    total_error = 0
+    SCALING = 4
+    engine: PdfEngine = PdfEngine(SCALING, clean)
+    # print(args.data, type(args.data))
     engine.set_files(args.data)
     if not is_extract:
         gui.start(-1, -1)
-    for pdf_index in range(engine.all_pdf_count):
+    for pdf_index in tqdm.tqdm(range(engine.all_pdf_count)):
         is_ok = engine.proccess_next_pdf_file()
-        print("\n")
-        print("***************  exam  ******************")
-        print(f"{engine.pdf_path}")
+        # print("\n")
+        # print("***************  exam  ******************")
+        # print(f"{engine.pdf_path}")
+
+        sub_id = engine.pdf_name.split("_")[0]
+        exam_id = engine.pdf_name.split(".")[0]
+        out_path = (
+            f"{igcse_path}{sep}{sub_id}{sep}pdf-extraction{sep}{exam_id}"
+        )
+        if is_extract and os.path.exists(f"{out_path}{sep}v1.json"):
+            # print("Skipping File .. already proccessed")
+            pass
+            # continue
+
         if not is_ok:
             break
-        engine.extract_questions_from_pdf()
+        try:
+            engine.extract_questions_from_pdf(debugging, clean)
+        except Exception as e:
+            print(traceback.format_exc())
+            print("Error > SKipping file :", e)
+            total_error += 1
+            continue
         if is_extract:
-            engine.question_detector.print_final_results(engine.pdf_path)
+            out = [
+                q.__to_dict__() for q in engine.question_detector.question_list
+            ]
+            out_path = (
+                f"{igcse_path}{sep}{sub_id}{sep}pdf-extraction{sep}{exam_id}"
+            )
+            os.makedirs(out_path, exist_ok=True)
+            with open(f"{out_path}{sep}v1.json", "w", encoding="utf-8") as f:
+                out_dict = {
+                    "scale": SCALING,
+                    "page_width": engine.pages[1].mediabox.width,
+                    "page_height": engine.pages[1].mediabox.height,
+                    "line_height": engine.line_height,
+                    "questions": out,
+                }
+                # pprint.pprint(out_dict)
+                f.write(json.dumps(out_dict, ensure_ascii=False, indent=4))
+            # print(f"saved successfully in {out_path}")
+            # engine.question_detector.print_final_results(engine.pdf_path)
         else:
             for nr in args.range:
                 q_surf = engine.render_a_question(nr)
                 gui.show_page(q_surf, True)
+
+    print("\n\n\ntotal error files = ", total_error)
 
 
 def show_page(args: CmdArgs):
@@ -455,15 +496,15 @@ def clear_temp_files(args: CmdArgs):
     for f in os.listdir("temp"):
         if os.path.isdir(f"temp{sep}{f}"):
             continue
-        print(f"removing {f}")
+        # print(f"removing {f}")
         os.remove(f"temp{sep}{f}")
 
     for f in os.listdir("output"):
         if f.startswith("glyphs_"):
-            print(f"removing {f}")
+            # print(f"removing {f}")
             os.remove(f"output{sep}{f}")
         if f.endswith("png"):
-            print(f"removing {f}")
+            # print(f"removing {f}")
             os.remove(f"output{sep}{f}")
 
 

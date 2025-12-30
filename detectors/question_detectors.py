@@ -36,8 +36,8 @@ EITHER_OR = 4
 FIRST_MAP = {
     UNKNOWN: "0",
     NUMERIC: "1",
-    ALPHAPET: "a",
-    ROMAN: "i",
+    ALPHAPET: "(a)",
+    ROMAN: "(i)",
     EITHER_OR: "EITHER",
 }
 
@@ -57,14 +57,15 @@ class QuestionDetectorBase(BaseDetector):
             " ",
             "\u0008",
             "\u2002",
-            "(",
             "[",
             "",
-            ")",
             "]",
             # ".",
         ]
-        self.allowed_chars_startup = ["1", "a", "i"]
+
+        # "(",
+        # ")",
+        self.allowed_chars_startup = ["1", "(a)", "(i)"]
 
         # main attributes
         self.question_list: list[QuestionBase] = []
@@ -102,14 +103,14 @@ class QuestionDetectorBase(BaseDetector):
         n_type = ALPHAPET
         if type(q.label) is int or q.label.isdigit():
             n_type = NUMERIC
-        elif checkIfRomanNumeral(q.label):
+        elif checkIfRomanNumeral(q.label.strip(")()")):
             n_type = ROMAN
-        elif len(q.label) == 1:
+        elif len(q.label.strip(")()")) == 1:
             n_type = ALPHAPET
         elif q.label in ["EITHER", "OR"]:
             n_type = EITHER_OR
         else:
-            raise Exception
+            raise Exception("Invalid question label")
         return n_type
 
     def get_allowed_startup_chars(self, level: int):
@@ -122,6 +123,9 @@ class QuestionDetectorBase(BaseDetector):
         res = [i for i in self.allowed_chars_startup if i != used]
         if level == LEVEL_PART:
             res.append("EITHER")
+        main_q = self.current_question[LEVEL_QUESTION]
+        if level == LEVEL_SUBPART and main_q and int(main_q.label) == 10:
+            print(used, res)
         return res
 
     def get_alternative_allowed(self, level):
@@ -147,7 +151,11 @@ class QuestionDetectorBase(BaseDetector):
             return self.get_allowed_startup_chars(level)
         if n_type == EITHER_OR:
             return ["OR"]
-        return get_next_label(curr.label, n_type)
+        n_label = get_next_label(curr.label.strip("(").strip(")"), n_type)
+        if level > 0 and n_type != EITHER_OR:
+            return f"({n_label})"
+        else:
+            return n_label
 
     def is_char_valid_as_next(self, char, level, strict=False):
         next = self.get_next_allowed(level)
@@ -237,15 +245,51 @@ class QuestionDetectorBase(BaseDetector):
     # ************** other Helper and utils
     # ___________________________________________________________
 
+    def append_if_not_exist(self, a_list: list, a_number: int):
+        if a_number not in a_list:
+            a_list.append(a_number)
+
     def set_page_number_for_first_detection(self, level):
         if self.is_first_detection_in_page:
             self.is_first_detection_in_page = False
             if level == LEVEL_SUBPART:
-                self.current_question[LEVEL_PART].pages.append(self.curr_page)
-            if level in [LEVEL_SUBPART, LEVEL_PART]:
-                self.current_question[LEVEL_QUESTION].pages.append(
-                    self.curr_page
+                cur = self.current_question[LEVEL_SUBPART]
+                if cur:
+                    self.append_if_not_exist(cur.pages, self.curr_page)
+                self.append_if_not_exist(
+                    self.current_question[LEVEL_PART].pages, self.curr_page
                 )
+            elif level == LEVEL_PART:
+                cur = self.current_question[LEVEL_PART]
+                if cur:
+                    self.append_if_not_exist(cur.pages, self.curr_page)
+                    if cur.parts:
+                        self.append_if_not_exist(
+                            cur.parts[-1].pages, self.curr_page
+                        )
+            elif level == LEVEL_QUESTION:
+                cur = self.current_question[LEVEL_QUESTION]
+                if cur:
+                    self.append_if_not_exist(cur.pages, self.curr_page)
+                    if cur.parts:
+                        self.append_if_not_exist(
+                            cur.parts[-1].pages, self.curr_page
+                        )
+                        if cur.parts[-1].parts:
+                            self.append_if_not_exist(
+                                cur.parts[-1].parts[-1].pages, self.curr_page
+                            )
+
+            if level in [LEVEL_SUBPART, LEVEL_PART]:
+                self.append_if_not_exist(
+                    self.current_question[LEVEL_QUESTION].pages, self.curr_page
+                )
+
+            # old_cur = self.current_question[LEVEL_QUESTION]
+            # if old_cur and old_cur.parts:
+            #     old_cur.parts[-1].pages.append(self.curr_page)
+            #     if old_cur.parts[-1].parts:
+            #         old_cur.parts[-1].parts[-1].pages.append(self.curr_page)
 
     def get_question_list(self, pdf_file_name_or_path) -> list[Question]:
         q_list = []

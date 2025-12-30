@@ -135,7 +135,7 @@ class CmdArgs:
             return
         files = []
         if self.size is None:
-            self.size = 12
+            self.size = 120000
         self.years = self.get_test_years()
         self.year_dict = {}
         for sub in self.subjects:
@@ -179,9 +179,14 @@ class CmdArgs:
 
         gr = self.group
         if gr == "all":
-            year = [i for i in range(11, 24)]
-        elif gr == "latest":
-            year = [23]
+            year = [i for i in range(11, 26)]
+        elif "latest" in gr:
+            # year = [23]
+            num = gr.replace("latest", "")
+            last = int(num) if num.isdigit() else 0
+            year = []
+            for i in range(25, 25 - 1 - last, -1):
+                year.append(i)
         elif "oldest" in gr:
             last = int(gr[-1]) if gr[-1].isdigit() else 0
             year = []
@@ -301,6 +306,10 @@ class CmdArgs:
             years.append(f"year{str(i)}")
         groups = [
             "latest",
+            "latest10",
+            "latest2",
+            "latest4",
+            "latest6",
             "oldest",
             "oldest2",
             "oldest4",

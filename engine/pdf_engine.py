@@ -99,6 +99,14 @@ class PdfEngine:
         self.detection_types = 0
         return True
 
+    # def skip_next_pdf_file(self):
+    #     if self.current_pdf_index >= self.all_pdf_count - 1:
+    #         return False
+    #     self.current_pdf_index += 1
+    #     self.current_page = 1
+    #     self.page_seg_dict = {}
+    #     self.detection_types = 0
+
     def extract_questions_from_pdf(self, debug=0, clean=2):
         (clean is not None) and self.set_clean(clean)
         (debug is not None) and self.set_debug(debug & self.M_DEBUG_DETECTOR)
@@ -142,7 +150,7 @@ class PdfEngine:
         #     surface = self.page_seg_dict[page_number].surface
         # else:
         self.execute_page_stream()
-        if True:
+        if False:
             self.doc_page: fitz = self.doc.load_page(page_number - 1)
             # zoom = 300 / 72
             # mat = fitz.Matrix(zoom, zoom)
@@ -259,6 +267,7 @@ class PdfEngine:
         if isinstance(res, IndirectObject):
             res = self.reader.get_object(res)
         self.res = res
+
         self.exgtate = self.get_external_g_state(res)
         self.xobject = self.get_x_object(res)
         # print(self.xobject)
@@ -266,7 +275,6 @@ class PdfEngine:
         self.scaled_page_width = page.mediabox.width * self.scaling
         self.scaled_page_height = page.mediabox.height * self.scaling
 
-        self.font_map = self.get_fonts(self.res, 0)
         self.color_map = self.get_color_space_map(self.res)
 
         streams_data: list[bytes] = self.get_page_stream_data(page)
@@ -286,6 +294,9 @@ class PdfEngine:
             )
         streams_data = pnc.bytes_to_string(streams_data, unicode_excape=True)
         self.current_stream = streams_data
+
+        self.debug_original_stream()
+        self.font_map = self.get_fonts(self.res, 0)
         return self
 
     def get_page_stream_data(self, page):

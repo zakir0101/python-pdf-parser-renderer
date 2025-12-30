@@ -102,7 +102,7 @@ class PdfFont:
         if not self.is_type0:
             if isinstance(self.encoding, str):
                 self.cid_to_char = charset_encoding[self.encoding]
-            else:
+            elif self.encoding:
                 if "/BaseEncoding" in self.encoding:
                     self.cid_to_char = charset_encoding[
                         self.encoding["/BaseEncoding"]
@@ -437,13 +437,51 @@ class PdfFont:
                 for _ in range(count):
                     cid_start = int(tokens[i + 1], 16)
                     cid_end = int(tokens[i + 4], 16)
-                    uni_start = int(tokens[i + 7], 16)
-                    for offset in range(cid_end - cid_start + 1):
-                        cid = cid_start + offset
-                        cid_map[cid] = chr(
-                            uni_start + offset
-                        )  # bytes(st+off).decode( "utf-8")
-                    i += 9  # Skip '<', start, '>', '<', end, '>', '<', uni_start, '>'
+
+                    # Check the format of the unicode mapping
+                    if i + 6 < len(tokens) and tokens[i + 6] == "[":
+                        # Format 2: range to array [ <unicode1> <unicode2> ... ]
+                        i += 7  # Skip past '<', start, '>', '<', end, '>', '['
+                        for offset in range(cid_end - cid_start + 1):
+                            if i < len(tokens) and tokens[i] == "<":
+                                unicode_hex = tokens[i + 1]
+                                cid = cid_start + offset
+                                cid_map[cid] = self._parse_unicode_hex(
+                                    unicode_hex
+                                )
+                                i += 3  # Skip '<', hex, '>'
+                            else:
+                                break
+                        # Skip past the closing ']'
+                        while i < len(tokens) and tokens[i] != "]":
+                            i += 1
+                        i += 1  # Skip the ']'
+
+                    else:
+                        # Format 1: range to range <cidStart> <cidEnd> <unicodeStart>
+                        # Make sure we have enough tokens and the next token is a hex number
+                        if (
+                            i + 6 < len(tokens)
+                            and tokens[i + 6] == "<"
+                            and i + 7 < len(tokens)
+                        ):
+                            uni_start = int(tokens[i + 7], 16)
+                            for offset in range(cid_end - cid_start + 1):
+                                cid = cid_start + offset
+                                cid_map[cid] = chr(uni_start + offset)
+                            i += 9  # Skip '<', start, '>', '<', end, '>', '<', uni_start, '>'
+                        else:
+                            # Unexpected format, skip this entry
+                            i += 6  # Skip past the CID range only
+                            # Try to find the end of this bfrange entry
+                            while i < len(tokens) and tokens[i] not in [
+                                "<",
+                                ">",
+                                "]",
+                                "beginbfrange",
+                                "endbfrange",
+                            ]:
+                                i += 1
             i += 1
 
         return cid_map, codespace_ranges or None
@@ -473,6 +511,18 @@ class PdfFont:
         if current:
             tokens.append("".join(current))
         return tokens
+
+    def _parse_unicode_hex(self, hex_str):
+        """Parse a hexadecimal string into a Unicode character"""
+        if len(hex_str) % 4 == 0:
+            # Handle surrogate pairs and multi-byte Unicode
+            chars = []
+            for j in range(0, len(hex_str), 4):
+                chars.append(chr(int(hex_str[j : j + 4], 16)))
+            return "".join(chars)
+        else:
+            # Single character
+            return chr(int(hex_str, 16))
 
     def create_glyph_map_dicts(self, font_path):
         char_to_gid = {}
